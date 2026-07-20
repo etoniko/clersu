@@ -4,9 +4,7 @@
 
 ## Сервер
 
-Прод: `wss://ffa.agar.su` (SSL на VPS).
-
-Локально при открытии с `localhost` клиент ходит на `ws://localhost:3000`.
+Прод: `wss://ffa.agar.su:6010`.
 
 URL задаётся в `js/config/servers.js`.
 
