@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>cler.su — свободная битва</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --panel: #152030;
+      --panel-edge: #3a5080;
+      --ink: #eef4ff;
+      --muted: #8aa0bc;
+      --accent: #5ec8ff;
+      --danger: #ff6b7a;
+      --gold: #ffd56a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "Press Start 2P", monospace;
+      background: #000;
+      color: var(--ink);
+      overflow: hidden;
+      height: 100vh;
+      user-select: none;
+      image-rendering: pixelated;
+    }
+
+    #view {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      image-rendering: pixelated;
+    }
+
+    #user-interface {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(420px, 94vw);
+      padding: 24px 20px;
+      background: var(--panel);
+      border: 4px solid var(--panel-edge);
+      box-shadow: 0 0 0 4px #000, 8px 8px 0 #000;
+      z-index: 100;
+      text-align: center;
+    }
+
+    #btn-settings {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 36px;
+      height: 36px;
+      border: 3px solid #000;
+      background: #1a2434;
+      color: var(--accent);
+      font-size: 16px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      z-index: 2;
+    }
+
+    #btn-settings:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0 #000;
+    }
+
+    #btn-settings svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .title {
+      font-size: 18px;
+      line-height: 1.6;
+      margin-bottom: 8px;
+      color: var(--accent);
+      text-shadow: 2px 2px 0 #000;
+    }
+
+    .title-sub {
+      color: var(--muted);
+      margin-bottom: 20px;
+      font-size: 8px;
+      line-height: 1.8;
+    }
+
+    input#name {
+      width: 100%;
+      padding: 12px;
+      border: 3px solid var(--panel-edge);
+      background: #0d1218;
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 10px;
+      margin-bottom: 16px;
+      outline: none;
+    }
+
+    input#name:focus {
+      border-color: var(--accent);
+    }
+
+    #play, #respawn, #btn-howto {
+      width: 100%;
+      padding: 14px 10px;
+      border: 3px solid #000;
+      background: linear-gradient(180deg, #5eb8ff, #2d78c8);
+      color: #fff;
+      font-family: inherit;
+      font-size: 10px;
+      cursor: pointer;
+      box-shadow: 4px 4px 0 #000;
+    }
+
+    #btn-howto {
+      margin-top: 10px;
+      background: linear-gradient(180deg, #3a4858, #1a2430);
+      color: var(--gold);
+      font-size: 8px;
+    }
+
+    #play:active, #respawn:active, #btn-howto:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    .hud {
+      position: fixed;
+      z-index: 10;
+      pointer-events: none;
+      font-size: 8px;
+      line-height: 1.7;
+    }
+
+    #player-stats {
+      bottom: 12px;
+      left: 12px;
+      top: auto;
+      width: 168px;
+      padding: 8px 10px;
+      background: rgba(18, 24, 32, 0.88);
+      border: 3px solid var(--panel-edge);
+      box-shadow: 3px 3px 0 #000;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    #player-stats[hidden] { display: none !important; }
+
+    .stat-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 5px;
+    }
+
+    .stat-row:last-child { margin-bottom: 0; }
+
+    .stat-label {
+      width: 28px;
+      font-size: 7px;
+      color: var(--muted);
+      flex: 0 0 auto;
+    }
+
+    .stat-track {
+      flex: 1;
+      height: 10px;
+      background: #2a3038;
+      border: 1px solid #000;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-fill {
+      height: 100%;
+      width: 100%;
+      transform-origin: left center;
+      transform: scaleX(1);
+    }
+
+    .stat-fill.hp { background: linear-gradient(180deg, #6af07a, #3ab84a); }
+    .stat-fill.armor { background: linear-gradient(180deg, #8ab4f0, #4a78c8); }
+    .stat-fill.stam { background: linear-gradient(180deg, #f5d060, #d0a020); }
+
+    .stat-val {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      color: #fff;
+      text-shadow: 1px 1px 0 #000;
+      pointer-events: none;
+    }
+
+    #game-dock {
+      top: 12px;
+      left: 12px;
+      bottom: auto;
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 25;
+    }
+
+    #menu-home {
+      position: relative;
+      top: auto;
+      right: auto;
+      left: auto;
+      z-index: 26;
+      width: 42px;
+      height: auto;
+      min-height: 42px;
+      border: 3px solid #000;
+      background: linear-gradient(180deg, #2a3848, #1a2430);
+      color: var(--accent);
+      cursor: pointer;
+      box-shadow: 3px 3px 0 #000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      flex: 0 0 auto;
+      pointer-events: auto;
+    }
+
+    #menu-home.visible {
+      display: flex;
+    }
+
+    #menu-home:active {
+      transform: translate(1px, 1px);
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    #menu-home svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    #weapon-hud {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      background: rgba(18, 24, 32, 0.88);
+      border: 3px solid var(--panel-edge);
+      box-shadow: 3px 3px 0 #000;
+      position: relative;
+      overflow: visible;
+    }
+
+    .wpn-slot {
+      min-width: 72px;
+      height: 36px;
+      padding: 2px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      opacity: 0.4;
+      border: 2px solid transparent;
+      background: rgba(0, 0, 0, 0.25);
+      position: relative;
+    }
+
+    .wpn-slot.active {
+      opacity: 1;
+      border-color: var(--accent);
+      background: rgba(94, 200, 255, 0.12);
+    }
+
+    .wpn-slot svg {
+      width: 36px;
+      height: 12px;
+      fill: #eef4ff;
+    }
+
+    .wpn-ammo {
+      font-family: "Tahoma", "Segoe UI", sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      color: #eef4ff;
+      text-shadow: 1px 1px 0 #000;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    .wpn-slot.active .wpn-ammo {
+      color: #ffe566;
+    }
+
+    .wpn-slot.reloading svg {
+      opacity: 0.35;
+    }
+
+    .wpn-reload {
+      position: absolute;
+      left: 50%;
+      top: 4px;
+      transform: translateX(-50%);
+      width: 28px;
+      height: 28px;
+      display: none;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .wpn-slot.reloading .wpn-reload {
+      display: block;
+    }
+
+    .wpn-reload .reload-clock {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: conic-gradient(rgba(190, 196, 204, 0.7) calc(var(--p, 0) * 1%), rgba(20, 24, 30, 0.2) 0);
+      position: relative;
+    }
+
+    .wpn-reload .reload-clock::after {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      background: rgba(18, 24, 32, 0.25);
+    }
+
+    #howto-panel,
+    #settings-panel {
+      position: fixed;
+      inset: 0;
+      z-index: 130;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.78);
+      pointer-events: auto;
+    }
+
+    #howto-panel[hidden],
+    #settings-panel[hidden] { display: none !important; }
+
+    .howto-card,
+    .settings-card {
+      width: min(420px, 94vw);
+      max-height: min(88vh, 560px);
+      overflow-y: auto;
+      padding: 20px 18px;
+      background: var(--panel);
+      border: 4px solid var(--panel-edge);
+      box-shadow: 8px 8px 0 #000;
+    }
+
+    .howto-card h2,
+    .settings-card h2 {
+      font-size: 11px;
+      color: var(--gold);
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .howto-card ul {
+      list-style: none;
+      color: var(--ink);
+      font-size: 8px;
+      line-height: 1.95;
+      margin-bottom: 16px;
+    }
+
+    .howto-card li span {
+      color: var(--accent);
+    }
+
+    .howto-card button,
+    .settings-card .settings-close {
+      width: 100%;
+      padding: 12px;
+      border: 3px solid #000;
+      background: var(--accent);
+      color: #041018;
+      font-family: inherit;
+      font-size: 9px;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 #000;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      text-align: left;
+      font-size: 8px;
+      color: var(--ink);
+      line-height: 1.4;
+    }
+
+    .settings-row label {
+      flex: 1;
+      color: var(--muted);
+    }
+
+    .settings-row input[type="range"] {
+      width: 120px;
+      accent-color: var(--accent);
+    }
+
+    .settings-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .settings-val {
+      min-width: 36px;
+      text-align: right;
+      color: var(--gold);
+      font-size: 8px;
+    }
+
+    .settings-section {
+      margin: 14px 0 8px;
+      font-size: 7px;
+      color: var(--accent);
+      text-align: left;
+      border-bottom: 2px solid var(--panel-edge);
+      padding-bottom: 4px;
+    }
+
+    .settings-keys {
+      list-style: none;
+      text-align: left;
+      font-size: 7px;
+      line-height: 1.9;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    .settings-keys span {
+      color: var(--ink);
+    }
+
+    #leaderboard {
+      top: 12px;
+      right: 12px;
+      width: 220px;
+      background: rgba(18, 24, 32, 0.88);
+      border: 3px solid var(--panel-edge);
+      box-shadow: 3px 3px 0 #000;
+      overflow: hidden;
+    }
+
+    #leaderboard.menu-mode {
+      z-index: 110;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--panel);
+      border: 4px solid var(--panel-edge);
+      box-shadow: 0 0 0 4px #000, 8px 8px 0 #000;
+      max-height: min(70vh, 420px);
+      overflow: auto;
+    }
+
+    #leaderboard .hud-title {
+      padding: 8px 10px;
+      font-size: 8px;
+      color: var(--gold);
+      border-bottom: 2px solid var(--panel-edge);
+    }
+
+    #leaderboard-list { padding: 6px; }
+
+    #killfeed {
+      top: auto;
+      right: 12px;
+      left: auto;
+      width: auto;
+      max-width: min(420px, calc(100vw - 24px));
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      pointer-events: none;
+      z-index: 22;
+      /* under mission board — JS sets top */
+      top: 220px;
+    }
+
+    .kf-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px 4px 12px;
+      background: rgba(28, 32, 36, 0.72);
+      border: 1px solid rgba(180, 190, 200, 0.22);
+      border-radius: 3px;
+      font-family: "Tahoma", "Segoe UI", sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-shadow: 1px 1px 0 #000;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateX(12px);
+      animation: kf-in 0.18s ease-out forwards;
+    }
+
+    .kf-row.kf-mine {
+      border-color: #c43c3c;
+      box-shadow: 0 0 0 1px rgba(196, 60, 60, 0.35);
+      background: rgba(40, 22, 22, 0.78);
+    }
+
+    .kf-row.kf-out {
+      animation: kf-out 0.35s ease-in forwards;
+    }
+
+    .kf-killer {
+      color: #7ec8ff;
+    }
+
+    .kf-victim {
+      color: #f0d060;
+    }
+
+    .kf-weapon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      height: 16px;
+      opacity: 0.95;
+    }
+
+    .kf-weapon svg {
+      width: 100%;
+      height: 100%;
+      fill: #f2f4f6;
+      filter: drop-shadow(0 1px 0 #000);
+    }
+
+    @keyframes kf-in {
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes kf-out {
+      to { opacity: 0; transform: translateX(18px); }
+    }
+
+    .lb-row {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      gap: 4px;
+      align-items: center;
+      padding: 4px;
+      margin-bottom: 3px;
+      background: rgba(255, 255, 255, 0.03);
+      font-size: 7px;
+    }
+
+    .lb-row.lb-me { outline: 1px solid var(--accent); }
+    .lb-row.lb-top1 { background: rgba(255, 209, 102, 0.12); }
+
+    .lb-rank {
+      width: 18px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .lb-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .lb-score { color: var(--gold); }
+    .lb-empty { padding: 10px; color: var(--muted); font-size: 7px; text-align: center; }
+
+    #death-panel {
+      position: fixed;
+      inset: 0;
+      z-index: 90;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.72);
+    }
+
+    #death-panel[hidden] { display: none !important; }
+
+    .death-card {
+      width: min(380px, 92vw);
+      padding: 22px 18px;
+      background: var(--panel);
+      border: 4px solid var(--panel-edge);
+      box-shadow: 8px 8px 0 #000;
+      text-align: center;
+    }
+
+    .death-card h2 {
+      color: var(--danger);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .death-card p {
+      color: var(--muted);
+      font-size: 8px;
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+
+    .char-picker {
+      margin: 0 0 16px;
+      text-align: left;
+    }
+
+    .char-label {
+      color: var(--muted);
+      font-size: 7px;
+      margin-bottom: 8px;
+    }
+
+    .char-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .char-nav {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #000;
+      background: #1a2434;
+      color: var(--accent);
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 #000;
+      flex: 0 0 auto;
+    }
+
+    .char-nav:active {
+      transform: translate(1px, 1px);
+      box-shadow: 2px 2px 0 #000;
+    }
+
+    .char-card {
+      flex: 1;
+      min-height: 56px;
+      padding: 10px 8px 8px;
+      border: 3px solid var(--panel-edge);
+      background:
+        radial-gradient(ellipse at 50% 70%, rgba(61, 214, 140, 0.12), transparent 55%),
+        #0d1218;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .char-preview {
+      width: 144px;
+      height: 144px;
+      image-rendering: auto;
+      border: 2px solid #000;
+      background:
+        radial-gradient(ellipse at 50% 60%, #1a2430, #0a0e14 70%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+    }
+
+    .char-meta {
+      min-width: 0;
+      text-align: center;
+      width: 100%;
+    }
+
+    .char-name {
+      font-size: 8px;
+      color: var(--ink);
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .char-style {
+      font-size: 7px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .char-dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 8px;
+      justify-content: center;
+    }
+
+    .char-dot {
+      width: 10px;
+      height: 10px;
+      border: 2px solid #000;
+      cursor: pointer;
+      opacity: 0.55;
+    }
+
+    .char-dot.active {
+      opacity: 1;
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="user-interface">
+    <button type="button" id="btn-settings" title="Настройки" aria-label="Настройки">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.1 12.9a7.5 7.5 0 0 0 .05-1.8l2-1.6-1.9-3.3-2.4.6a7.4 7.4 0 0 0-1.5-.9l-.4-2.5h-3.8l-.4 2.5c-.5.2-1 .5-1.5.9l-2.4-.6L3.9 9.5l2 1.6a7.5 7.5 0 0 0 0 1.8l-2 1.6 1.9 3.3 2.4-.6c.5.4 1 .7 1.5.9l.4 2.5h3.8l.4-2.5c.5-.2 1-.5 1.5-.9l2.4.6 1.9-3.3-2-1.6zM12 15.2A3.2 3.2 0 1 1 12 8.8a3.2 3.2 0 0 1 0 6.4z"/></svg>
+    </button>
+    <div class="title">cler.su</div>
+    <div class="title-sub">Свободная битва · огромная карта · до 100 игроков · 20 ботов<br />пустыня, пещеры и каналы</div>
+    <input type="text" id="name" maxlength="15" placeholder="Ваш ник" autocomplete="off" />
+
+    <div class="char-picker">
+      <div class="char-label">Персонаж</div>
+      <div class="char-row">
+        <button type="button" class="char-nav" id="char-prev" aria-label="Назад">‹</button>
+        <div class="char-card">
+          <canvas class="char-preview" id="char-preview" width="256" height="256"></canvas>
+          <div class="char-meta">
+            <div class="char-name" id="char-name">Оливер</div>
+            <div class="char-style" id="char-style">мужчина</div>
+          </div>
+        </div>
+        <button type="button" class="char-nav" id="char-next" aria-label="Далее">›</button>
+      </div>
+      <div class="char-dots" id="char-dots"></div>
+    </div>
+
+    <button type="button" id="play">ИГРАТЬ</button>
+    <button type="button" id="btn-howto">Как играть?</button>
+  </div>
+
+  <div id="death-panel" hidden>
+    <div class="death-card">
+      <h2>ПОРАЖЕНИЕ</h2>
+      <p id="death-info"></p>
+      <button type="button" id="respawn">ВОЗРОДИТЬСЯ</button>
+    </div>
+  </div>
+
+  <div id="game-dock" class="hud">
+    <button type="button" id="menu-home" title="Меню (Esc)" aria-label="Меню">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3.2 3 11h2.5v8.5h5V14h3v5.5H18V11H20.5L12 3.2z"/>
+      </svg>
+    </button>
+    <div id="weapon-hud">
+      <div class="wpn-slot" id="wpn-pistol" title="Пистолет (1)">
+        <div class="wpn-reload" aria-hidden="true"><div class="reload-clock" data-reload-clock></div></div>
+        <svg viewBox="0 0 48 16" aria-hidden="true"><path d="M2 8h6l2-3h14l3 3h8v3h-3l-1 3H18l-2-3H8l-2 2H2V8zm28 0h6v2h-4l-1 2h-3l2-4z"/></svg>
+        <span class="wpn-ammo" id="ammo-pistol">14/128</span>
+      </div>
+      <div class="wpn-slot" id="wpn-rifle" title="Автомат (2)">
+        <div class="wpn-reload" aria-hidden="true"><div class="reload-clock" data-reload-clock></div></div>
+        <svg viewBox="0 0 48 16" aria-hidden="true"><path d="M1 9h4l1-2h28l2 2h8v2h-6l-1 2H18l-1-2H8v2H4l-1-2H1V9zm34-1h5v1h-5V8zM12 11h8v1h-8v-1z"/></svg>
+        <span class="wpn-ammo" id="ammo-rifle">32/256</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="player-stats" class="hud" hidden>
+    <div class="stat-row">
+      <span class="stat-label">HP</span>
+      <div class="stat-track">
+        <div class="stat-fill hp" id="stat-hp"></div>
+        <span class="stat-val" id="stat-hp-val">100</span>
+      </div>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Броня</span>
+      <div class="stat-track">
+        <div class="stat-fill armor" id="stat-armor"></div>
+        <span class="stat-val" id="stat-armor-val">0</span>
+      </div>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Вын.</span>
+      <div class="stat-track">
+        <div class="stat-fill stam" id="stat-stam"></div>
+        <span class="stat-val" id="stat-stam-val">100</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="howto-panel" hidden>
+    <div class="howto-card">
+      <h2>Как играть</h2>
+      <ul>
+        <li><span>WASD</span> — движение</li>
+        <li><span>Мышь</span> — прицел</li>
+        <li><span>ЛКМ</span> — стрельба (удерживать = авто)</li>
+        <li><span>1</span> — пистолет · <span>2</span> — автомат</li>
+        <li><span>R</span> — перезарядка (1 сек.)</li>
+        <li><span>ПКМ</span> — нож (−50% HP, −5% выносливости)</li>
+        <li><span>Пробел</span> — рывок: с WASD в сторону движения, без клавиш — к курсору (−20% вын.)</li>
+        <li><span>Колёсико</span> — масштаб камеры</li>
+        <li><span>Esc</span> — меню</li>
+      </ul>
+      <button type="button" id="howto-close">Понятно</button>
+    </div>
+  </div>
+
+  <div id="settings-panel" hidden>
+    <div class="settings-card">
+      <h2>Настройки</h2>
+      <div class="settings-section">Звук</div>
+      <div class="settings-row">
+        <label for="set-mute">Звук включён</label>
+        <input type="checkbox" id="set-mute" checked />
+      </div>
+      <div class="settings-row">
+        <label for="set-volume">Громкость</label>
+        <input type="range" id="set-volume" min="0" max="100" value="42" />
+        <span class="settings-val" id="set-volume-val">42%</span>
+      </div>
+      <div class="settings-row">
+        <label for="set-walk-sfx">Звук шагов</label>
+        <input type="checkbox" id="set-walk-sfx" checked />
+      </div>
+      <div class="settings-section">Игра</div>
+      <div class="settings-row">
+        <label for="set-names">Ники игроков</label>
+        <input type="checkbox" id="set-names" checked />
+      </div>
+      <div class="settings-row">
+        <label for="set-zoom">Скорость зума</label>
+        <input type="range" id="set-zoom" min="50" max="200" value="100" />
+        <span class="settings-val" id="set-zoom-val">100%</span>
+      </div>
+      <div class="settings-section">Управление</div>
+      <ul class="settings-keys">
+        <li><span>WASD</span> — движение</li>
+        <li><span>Мышь</span> — прицел · <span>ЛКМ</span> стрельба · <span>ПКМ</span> нож</li>
+        <li><span>1 / 2</span> — пистолет / автомат · <span>R</span> перезарядка</li>
+        <li><span>Пробел</span> — рывок (WASD / курсор) · <span>Колёсико</span> зум · <span>Esc</span> меню</li>
+      </ul>
+      <button type="button" class="settings-close" id="settings-close">Готово</button>
+    </div>
+  </div>
+
+  <div id="leaderboard" class="hud">
+    <div class="hud-title" id="leaderboard-title">РЕЙТИНГ</div>
+    <div id="leaderboard-list"><div class="lb-empty">Пока никого нет</div></div>
+  </div>
+  <div id="killfeed" class="hud" aria-live="polite"></div>
+
+  <canvas id="view"></canvas>
+  <script src="./js/vendor/pixi.min.js"></script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

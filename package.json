@@ -1,0 +1,9 @@
+{
+  "name": "clersu-client",
+  "version": "3.0.0",
+  "private": true,
+  "description": "cler.su FFA client (static)",
+  "scripts": {
+    "start": "npx --yes serve . -p 8080"
+  }
+}
