@@ -8,6 +8,8 @@ export class Sound {
     this._walkAt = 0;
     this.master = 0.42;
     this._out = null;
+    this._muffle = null;
+    this._muffleAmt = 0;
     this.muteWalk = false;
   }
 
@@ -19,7 +21,13 @@ export class Sound {
       this.ctx = new AC();
       this._out = this.ctx.createGain();
       this._out.gain.value = this.master;
-      this._out.connect(this.ctx.destination);
+      // Master lowpass — dulls ALL game SFX when hurt
+      this._muffle = this.ctx.createBiquadFilter();
+      this._muffle.type = "lowpass";
+      this._muffle.frequency.value = 16000;
+      this._muffle.Q.value = 0.5;
+      this._out.connect(this._muffle);
+      this._muffle.connect(this.ctx.destination);
     }
     if (this.ctx.state === "suspended") this.ctx.resume();
     return this.ctx;
@@ -44,6 +52,28 @@ export class Sound {
   setMaster(v) {
     this.master = Math.max(0, Math.min(1, Number(v) || 0));
     if (this._out) this._out.gain.value = this.enabled ? this.master : 0;
+  }
+
+  /**
+   * 0 = normal, 1 = heavily muffled (underwater / ringing ears).
+   * Affects every sound that goes through the master bus.
+   */
+  setMuffle(amount) {
+    const ctx = this.ensure();
+    if (!ctx || !this._muffle) return;
+    const t = Math.max(0, Math.min(1, Number(amount) || 0));
+    this._muffleAmt = t;
+    // Clear ~16kHz → muffled ~280Hz
+    const freq = 280 + (16000 - 280) * Math.pow(1 - t, 1.35);
+    const now = ctx.currentTime;
+    this._muffle.frequency.cancelScheduledValues(now);
+    this._muffle.frequency.setTargetAtTime(freq, now, 0.06);
+    // Slight volume dip when muffled
+    if (this._out && this.enabled) {
+      const g = this.master * (1 - t * 0.35);
+      this._out.gain.cancelScheduledValues(now);
+      this._out.gain.setTargetAtTime(g, now, 0.06);
+    }
   }
 
   /**

@@ -1,6 +1,7 @@
 import { BinaryReader, Writer } from "../utils/binary.js";
 import { SERVER_WS_URL } from "../config/servers.js";
 import { FfaMap, rleDecode } from "../map/FfaMap.js";
+import { getSelectedCharacterIndex } from "../game/CharacterFactory.js";
 
 export class Network {
   static SERVER_TO_CLIENT = {
@@ -22,6 +23,7 @@ export class Network {
     MELEE: 19,
     SET_WEAPON: 20,
     RELOAD: 21,
+    PROFILE: 22,
     PONG: 2
   };
 
@@ -44,6 +46,8 @@ export class Network {
     this.deaths = 0;
     this.world = null;
     this.me = null;
+    // Per-tab skin (NOT live localStorage — otherwise 2 tabs share one look)
+    this.localSkin = getSelectedCharacterIndex();
   }
 
   connect(addr = SERVER_WS_URL) {
@@ -71,9 +75,23 @@ export class Network {
   }
 
   spawn(name) {
+    this.localSkin = getSelectedCharacterIndex();
     const w = new Writer();
     w.setUint8(Network.CLIENT_TO_SERVER.SPAWN);
+    w.setUint8(this.localSkin);
     w.setUtf16(name || "Игрок");
+    this.send(w.build());
+  }
+
+  /** Push nick + skin so everyone sees the change without respawn. */
+  sendProfile(name, skin) {
+    if (skin !== undefined && skin !== null) {
+      this.localSkin = skin | 0;
+    }
+    const w = new Writer();
+    w.setUint8(Network.CLIENT_TO_SERVER.PROFILE);
+    w.setUint8(this.localSkin | 0);
+    w.setUtf16(name || this.core.ui?.getNick?.() || "Игрок");
     this.send(w.build());
   }
 
@@ -217,6 +235,7 @@ export class Network {
     me.ammoRifle = reader.uint8();
     me.reserveRifle = reader.uint16();
     me.name = this.core.ui?.getNick?.() || "Игрок";
+    me.skin = this.localSkin | 0;
     this.me = me;
     const playerCount = reader.uint16();
     const bulletCount = reader.uint16();
@@ -234,6 +253,7 @@ export class Network {
       const armor = reader.uint8();
       const flags = reader.uint8();
       const weapon = reader.uint8();
+      const skin = reader.uint8();
       const color = {
         r: reader.uint8(),
         g: reader.uint8(),
@@ -252,6 +272,7 @@ export class Network {
         muzzle: !!(flags & 4),
         reload: !!(flags & 8),
         weapon,
+        skin,
         color,
         name
       });

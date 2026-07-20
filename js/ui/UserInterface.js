@@ -5,6 +5,7 @@ import {
   paintCharacterPreview
 } from "../game/CharacterFactory.js";
 import { settings, saveSettings } from "../config/settings.js";
+import { SERVER_HTTP_URL } from "../config/servers.js";
 
 const WEAPON_ICONS = {
   0: `<svg viewBox="0 0 48 16" aria-hidden="true"><path d="M2 8h6l2-3h14l3 3h8v3h-3l-1 3H18l-2-3H8l-2 2H2V8zm28 0h6v2h-4l-1 2h-3l2-4z"/></svg>`,
@@ -82,9 +83,52 @@ export class UserInterface {
     this.startPreviewAnim();
     this.syncHomeButton();
     this.syncLeaderboardMode();
+    this.syncTouchControls();
     this.layoutKillFeed();
     this.setWeaponHud({ weapon: 0, ammoPistol: 14, reservePistol: 128, ammoRifle: 32, reserveRifle: 256 });
     this.syncSettingsForm();
+    this.fetchBestPlayers();
+    this._statsTimer = setInterval(() => {
+      if (this.isMenuOpen()) this.fetchBestPlayers();
+    }, 8000);
+  }
+
+  async fetchBestPlayers() {
+    if (!this.leaderboardEl || !this.isMenuOpen()) return;
+    try {
+      const res = await fetch(`${SERVER_HTTP_URL}/stats`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`stats ${res.status}`);
+      const data = await res.json();
+      const list = Array.isArray(data?.topKd) ? data.topKd : [];
+      this._bestPlayers = list;
+      this.renderBestPlayers(list);
+    } catch {
+      if (!this._bestPlayers?.length) {
+        this.leaderboardEl.innerHTML = '<div class="lb-empty">Нет данных /stats</div>';
+      }
+    }
+  }
+
+  renderBestPlayers(items) {
+    if (!this.leaderboardEl) return;
+    if (!items.length) {
+      this.leaderboardEl.innerHTML = '<div class="lb-empty">Пока никого нет</div>';
+      return;
+    }
+    this.leaderboardEl.innerHTML = items
+      .map((item, i) => {
+        const top = i === 0 ? " lb-top1" : "";
+        const kills = item.kills | 0;
+        const deaths = item.deaths | 0;
+        const kd = Number(item.kd ?? kills / Math.max(1, deaths)).toFixed(1);
+        return `<div class="lb-row${top}">
+          <span class="lb-rank">${i + 1}</span>
+          <span class="lb-name">${escapeHtml(item.name || "?")}</span>
+          <span class="lb-score" title="K/D ${kd} (${kills}/${deaths})">${kills}</span>
+        </div>`;
+      })
+      .join("");
+    this.layoutKillFeed();
   }
 
   bindSettingsControls() {
@@ -218,7 +262,23 @@ export class UserInterface {
     if (this.leaderboardTitle) {
       this.leaderboardTitle.textContent = menuOpen ? "Лучшие игроки" : "РЕЙТИНГ";
     }
+    if (menuOpen) {
+      this.fetchBestPlayers();
+    } else if (this.core.net?.leaderboard) {
+      this.updateLeaderboard(this.core.net.leaderboard, this.core.net.ownerPlayerId);
+    }
     this.layoutKillFeed();
+    this.syncTouchControls();
+  }
+
+  syncTouchControls() {
+    const el = document.getElementById("touch-controls");
+    if (!el) return;
+    const touch = this.core.input?.touchMode;
+    const show = Boolean(touch && this.inGame && !this.isMenuOpen() && this.deathPanel?.hidden);
+    el.classList.toggle("visible", show);
+    el.setAttribute("aria-hidden", show ? "false" : "true");
+    if (!show) this.core.input?.resetTouchAxes?.();
   }
 
   syncHomeButton() {
@@ -239,14 +299,25 @@ export class UserInterface {
     localStorage.setItem("cler_su_nick", this.getNick());
     setSelectedCharacterIndex(this.charIndex);
     this.applyCharacterToSprites();
+    if (this.core.net?.connected) {
+      this.core.net.sendProfile(this.getNick(), this.charIndex);
+    }
     this.hideMenu();
   }
 
   applyCharacterToSprites() {
+    const net = this.core.net;
+    if (net) net.localSkin = this.charIndex | 0;
+    const id = net?.ownerPlayerId;
     const sprites = this.core.app?.playerSprites;
     if (!sprites) return;
-    for (const spr of sprites.values()) {
-      spr.currentVariant = -1;
+    // Only refresh THIS tab's local sprite — not every player on screen
+    const local = id ? sprites.get(id) : null;
+    if (local) local.currentVariant = -1;
+    else {
+      for (const spr of sprites.values()) {
+        if (spr.isLocal) spr.currentVariant = -1;
+      }
     }
   }
 
@@ -272,6 +343,10 @@ export class UserInterface {
     this.charIndex = setSelectedCharacterIndex(index);
     this.previewFrame = 0;
     this.renderCharacterPicker();
+    this.applyCharacterToSprites();
+    if (this.inGame && this.core.net?.connected) {
+      this.core.net.sendProfile(this.getNick(), this.charIndex);
+    }
   }
 
   renderCharacterPicker() {
@@ -336,6 +411,7 @@ export class UserInterface {
       this.core.app.startSpawnZoom();
     }
     this.layoutKillFeed();
+    this.syncTouchControls();
   }
 
   onWorld(me) {
@@ -420,6 +496,8 @@ export class UserInterface {
 
   updateLeaderboard(items, myId) {
     if (!this.leaderboardEl) return;
+    // Menu uses /stats (K/D). In-game board = live kills.
+    if (this.isMenuOpen()) return;
     if (!items.length) {
       this.leaderboardEl.innerHTML = '<div class="lb-empty">Пока никого нет</div>';
     } else {
@@ -428,12 +506,10 @@ export class UserInterface {
           const me = item.id === myId ? " lb-me" : "";
           const top = i === 0 ? " lb-top1" : "";
           const kills = item.kills ?? item.score ?? 0;
-          const deaths = item.deaths ?? 0;
-          const kd = (kills / Math.max(1, deaths)).toFixed(1);
           return `<div class="lb-row${me}${top}">
           <span class="lb-rank">${i + 1}</span>
           <span class="lb-name">${escapeHtml(item.name)}</span>
-          <span class="lb-score" title="${kills}/${deaths}">${kd}</span>
+          <span class="lb-score">${kills}</span>
         </div>`;
         })
         .join("");
@@ -484,6 +560,7 @@ export class UserInterface {
     this.core.sound?.death();
     this.deathPanel.hidden = false;
     this.syncHomeButton();
+    this.syncTouchControls();
     this.deathInfo.textContent = killer
       ? `Вас убил: ${killer}. Убийств: ${score}`
       : `Вы погибли. Убийств: ${score}`;

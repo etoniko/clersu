@@ -908,8 +908,14 @@ export function setSelectedCharacterIndex(index) {
 }
 
 export function pickCharacterIndex(player, isMe) {
+  // Prefer explicit skin on the player object (local tab sets me.skin; remotes get server skin).
+  // Do NOT read live localStorage for isMe — two tabs would mirror each other.
+  const skin = player?.skin;
+  if (skin !== undefined && skin !== null && Number.isFinite(Number(skin))) {
+    return ((Number(skin) % PALETTES.length) + PALETTES.length) % PALETTES.length;
+  }
   if (isMe) return getSelectedCharacterIndex();
-  return Number(player.id || 0) % PALETTES.length;
+  return Number(player?.id || 0) % PALETTES.length;
 }
 
 export function getPaletteCount() {

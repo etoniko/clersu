@@ -5,7 +5,8 @@ const DEFAULTS = {
   volume: 42,
   walkSfx: true,
   showNames: true,
-  zoomSpeed: 100
+  zoomSpeed: 100,
+  cameraZoom: null
 };
 
 export function loadSettings() {

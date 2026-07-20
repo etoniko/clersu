@@ -2,6 +2,7 @@
 import { createTextures } from "./PixelAssets.js";
 import { PlayerSprite } from "./PlayerSprite.js";
 import { normalizeAngle } from "./CharacterFactory.js";
+import { settings, saveSettings } from "../config/settings.js";
 
 export class Application {
   constructor(core) {
@@ -14,8 +15,6 @@ export class Application {
     this.world = null;
     this.mapReady = false;
     this.viewYScale = 1;
-    this.zoom = 1.5;
-    this.viewZoom = 1.5;
     this.zoomLimits = { min: 0.08, max: 2.8 };
     this.chunkRadius = 18;
     this._chunkKey = "";
@@ -28,6 +27,22 @@ export class Application {
     this.camReady = false;
     this.minimapSize = 200;
     this.minimapPad = 12;
+    this.isMobile =
+      (typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches) ||
+      (navigator.maxTouchPoints || 0) > 0;
+    if (this.isMobile) {
+      this.minimapSize = 110;
+      this.chunkRadius = 12;
+      this.spawnZoomClose = 1.85;
+    }
+    const savedZoom = Number(settings.cameraZoom);
+    if (Number.isFinite(savedZoom) && savedZoom > 0) {
+      this.zoom = savedZoom;
+      this.viewZoom = savedZoom;
+    } else {
+      this.zoom = this.spawnZoomClose;
+      this.viewZoom = this.spawnZoomClose;
+    }
 
     this.playerSprites = new Map();
     this.bulletSprites = new Map();
@@ -50,7 +65,8 @@ export class Application {
   initRenderer() {
     const w = Math.max(1, window.innerWidth | 0);
     const h = Math.max(1, window.innerHeight | 0);
-    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
+    const dprCap = this.isMobile ? 1.25 : 2;
+    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), dprCap);
 
     if (PIXI.settings) {
       PIXI.settings.ROUND_PIXELS = false;
@@ -64,10 +80,10 @@ export class Application {
       view: this.view,
       width: w,
       height: h,
-      antialias: true,
+      antialias: !this.isMobile,
       resolution: dpr,
       autoDensity: true,
-      powerPreference: "high-performance",
+      powerPreference: this.isMobile ? "default" : "high-performance",
       backgroundColor: 0x000000,
       backgroundAlpha: 1
     });
@@ -81,6 +97,8 @@ export class Application {
     this.graveLayer.sortableChildren = true;
     this.entityLayer = new PIXI.Container();
     this.entityLayer.sortableChildren = true;
+    // Local player lives here — always above other players, no zIndex fight
+    this.localLayer = new PIXI.Container();
     this.fxLayer = new PIXI.Container();
     this.fxLayer.sortableChildren = true;
 
@@ -91,6 +109,7 @@ export class Application {
       this.wallLayer,
       this.graveLayer,
       this.entityLayer,
+      this.localLayer,
       this.fxLayer
     );
 
@@ -114,6 +133,9 @@ export class Application {
     this.minimapDots = new PIXI.Graphics();
     this.minimapRoot.addChild(this.minimapBg, this.minimapMap, this.minimapDots);
     this.stage.addChild(this.minimapRoot);
+
+    this.damageFx = document.getElementById("damage-fx");
+    this._damageIntensity = 0;
 
     this.resize();
   }
@@ -139,7 +161,7 @@ export class Application {
     if (!this.minimapRoot) return;
     const size = this.minimapSize;
     const pad = this.minimapPad;
-    this.minimapRoot.position.set(w - size - pad - 8, h - size - pad - 8);
+    this.minimapRoot.position.set(w - size - pad - 8, this.isMobile ? 52 : h - size - pad - 8);
     this.minimapBg.clear();
     this.minimapBg.beginFill(0x0c1218, 0.82);
     this.minimapBg.drawRoundedRect(-6, -6, size + 12, size + 12, 6);
@@ -284,12 +306,25 @@ export class Application {
     return Math.min(w / size, h / (size * tilt)) * 0.98;
   }
 
-  /** Сразу игровой зум у персонажа (без интро). */
+  /** Сразу игровой зум у персонажа (сохранённый пользователем, если есть). */
   startSpawnZoom() {
     this.zoomIntro = null;
-    this.zoom = this.spawnZoomClose;
-    this.viewZoom = this.spawnZoomClose;
+    const z = this.getPreferredZoom();
+    this.zoom = z;
+    this.viewZoom = z;
     this._chunkKey = "";
+  }
+
+  getPreferredZoom() {
+    const saved = Number(settings.cameraZoom);
+    const base = Number.isFinite(saved) && saved > 0 ? saved : this.spawnZoomClose;
+    this.zoomLimits.min = Math.min(this.fitMapZoom(), 0.12);
+    return Math.max(this.zoomLimits.min, Math.min(this.zoomLimits.max, base));
+  }
+
+  persistZoom() {
+    settings.cameraZoom = this.zoom;
+    saveSettings(settings);
   }
 
   easeOutQuint(t) {
@@ -310,6 +345,7 @@ export class Application {
     this.zoomLimits.min = Math.min(fit, 0.12);
     const next = this.zoom * factor;
     this.zoom = Math.max(this.zoomLimits.min, Math.min(this.zoomLimits.max, next));
+    this.persistZoom();
   }
 
   onMapReady() {
@@ -338,8 +374,9 @@ export class Application {
       if (this.overviewGfx.parent) this.overviewGfx.parent.removeChild(this.overviewGfx);
     }
     this.zoomLimits.min = Math.min(this.fitMapZoom(), 0.12);
-    this.zoom = this.spawnZoomClose;
-    this.viewZoom = this.spawnZoomClose;
+    const preferred = this.getPreferredZoom();
+    this.zoom = preferred;
+    this.viewZoom = preferred;
     this.camReady = false;
     this.buildMinimap();
     this.startSpawnZoom();
@@ -789,14 +826,21 @@ export class Application {
     const upsertPlayer = (p, isMe) => {
       aliveIds.add(`p${p.id ?? "me"}`);
       let spr = this.playerSprites.get(p.id ?? "me");
+      const layer = isMe ? this.localLayer : this.entityLayer;
       if (!spr) {
         spr = new PlayerSprite(this.renderer);
-        this.entityLayer.addChild(spr);
+        layer.addChild(spr);
         this.playerSprites.set(p.id ?? "me", spr);
+      } else if (spr.parent !== layer) {
+        spr.parent?.removeChild(spr);
+        layer.addChild(spr);
       }
       this.bindPlayerSound(spr);
       spr.sync(p, isMe, now);
-      spr.zIndex = p.y;
+      if (!isMe) {
+        const z = p.y | 0;
+        if (spr.zIndex !== z) spr.zIndex = z;
+      }
     };
 
     upsertPlayer(world.me, true);
@@ -931,12 +975,75 @@ export class Application {
     this.camReady = true;
 
     const s = this.viewZoom;
+    let shakeX = 0;
+    let shakeY = 0;
+    const dmg = this._damageIntensity || 0;
+    if (dmg > 0.02) {
+      const now = performance.now();
+      // Smooth, soft sway — not violent jitter
+      const amp = 0.6 + dmg * 2.2;
+      shakeX = Math.sin(now * 0.012) * amp + Math.sin(now * 0.027) * amp * 0.35;
+      shakeY = Math.cos(now * 0.014) * amp * 0.85 + Math.cos(now * 0.023) * amp * 0.3;
+    } else if (this.shakeAmp > 0) {
+      shakeX = (Math.random() - 0.5) * this.shakeAmp;
+      shakeY = (Math.random() - 0.5) * this.shakeAmp;
+      this.shakeAmp *= 0.88;
+      if (this.shakeAmp < 0.15) this.shakeAmp = 0;
+    }
     this.world.scale.set(s, s * tilt);
-    this.world.position.set(w / 2 - this.camX * s, h / 2 - this.camY * s * tilt);
+    this.world.position.set(
+      w / 2 - this.camX * s + shakeX,
+      h / 2 - this.camY * s * tilt + shakeY
+    );
     if (this.bgPattern) {
       this.bgPattern.tilePosition.set(-this.camX * s * 0.22, -this.camY * s * tilt * 0.22);
     }
     this.refreshVisibleChunks(this.camX, this.camY);
+  }
+
+  updateDamageFx(dt = 0.016) {
+    const el = this.damageFx || document.getElementById("damage-fx");
+    if (!el) return;
+    this.damageFx = el;
+    const canvas = this.view;
+    const me = this.gameWorld?.me;
+    let t = 0;
+    let critical = false;
+    if (me) {
+      const hp = Math.max(0, Math.min(100, me.health | 0));
+      if (!me.alive) {
+        t = 1;
+        critical = true;
+      } else if (hp <= 50) {
+        t = (50 - hp) / 50;
+        critical = hp <= 5;
+      }
+    }
+    this._damageIntensity += (t - this._damageIntensity) * Math.min(1, dt * 10);
+    if (t > this._damageIntensity) {
+      this._damageIntensity = Math.min(t, this._damageIntensity + dt * 4);
+    }
+    const v = this._damageIntensity;
+
+    this.core.sound?.setMuffle?.(critical ? Math.max(v, 0.85) : v);
+
+    if (v < 0.015) {
+      el.style.opacity = "0";
+      el.classList.remove("active", "critical");
+      el.style.removeProperty("--dmg");
+      canvas?.classList.remove("dmg-bw");
+      return;
+    }
+    el.classList.add("active");
+    el.classList.toggle("critical", critical);
+    el.style.opacity = "1";
+    el.style.setProperty("--dmg", String(critical ? Math.max(v, 0.92) : v));
+    el.style.setProperty("--dmg-blur", `${(1.5 + (critical ? 1 : v) * 8).toFixed(1)}px`);
+    el.style.setProperty("--pulse-ms", `${Math.round(critical ? 320 : 900 - v * 520)}ms`);
+
+    // ≤5% HP / dead: entire game world black & white
+    if (critical) canvas?.classList.add("dmg-bw");
+    else canvas?.classList.remove("dmg-bw");
   }
 
   drawDeathOverlay() {
@@ -973,11 +1080,14 @@ export class Application {
       this.updateParticles(dt);
       this.updateCamera(dt);
       this.updateMinimap();
+      this.updateDamageFx(dt);
       if (this.gameWorld.me.alive) {
         this.clearDeathOverlay();
       } else {
         this.drawDeathOverlay();
       }
+    } else {
+      this.updateDamageFx(dt);
     }
     this.renderer.render(this.stage);
     requestAnimationFrame(() => this.loop());

@@ -4,7 +4,7 @@
 
 ## Сервер
 
-Прод: `wss://ffa.agar.su:6010`.
+Прод: `ws://ffa.agar.su:6010` (на порту нет TLS; для `wss://` нужен nginx/SSL).
 
 URL задаётся в `js/config/servers.js`.
 
