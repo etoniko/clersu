@@ -1,5 +1,4 @@
-/** Game server on VPS (plain WS on :6010 — no TLS on this port). */
-export const SERVER_WS_URL = "ws://ffa.agar.su:6010";
-
-/** HTTP base for /stats (same host/port as WS). */
-export const SERVER_HTTP_URL = SERVER_WS_URL.replace(/^ws/i, "http");
+/** Same host style as slither (wss + Let's Encrypt on VPS). */
+export const SERVER_HOST = "ffa.agar.su:6010";
+export const SERVER_WS_URL = `wss://${SERVER_HOST}`;
+export const SERVER_HTTP_URL = `https://${SERVER_HOST}`;
