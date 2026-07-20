@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="round">
+      <rect width="512" height="512" rx="96" ry="96"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#round)">
+    <rect width="512" height="512" fill="#1565C0"/>
+
+    <g transform="translate(256 248) scale(1.18)">
+      <!-- Back sword -->
+      <g transform="rotate(-45)">
+        <!-- Blade -->
+        <path d="M0 -210 L20 -185 L24 72 L0 102 L-24 72 L-20 -185 Z" fill="#CFD8DC"/>
+        <path d="M0 -210 L8 -185 L10 72 L0 92 L-10 72 L-8 -185 Z" fill="#ECEFF1"/>
+        <!-- Guard -->
+        <rect x="-42" y="68" width="84" height="28" rx="4" fill="#FFC107"/>
+        <circle cx="-42" cy="82" r="14" fill="#FFC107"/>
+        <circle cx="42" cy="82" r="14" fill="#FFC107"/>
+        <!-- Grip -->
+        <rect x="-18" y="96" width="36" height="92" rx="6" fill="#6D4C41"/>
+        <rect x="-18" y="110" width="36" height="10" fill="#5D4037"/>
+        <rect x="-18" y="134" width="36" height="10" fill="#5D4037"/>
+        <rect x="-18" y="158" width="36" height="10" fill="#5D4037"/>
+        <!-- Pommel -->
+        <circle cx="0" cy="208" r="26" fill="#FFC107"/>
+        <circle cx="0" cy="208" r="10" fill="#FFD54F"/>
+      </g>
+
+      <!-- Front sword -->
+      <g transform="rotate(45)">
+        <path d="M0 -210 L20 -185 L24 72 L0 102 L-24 72 L-20 -185 Z" fill="#CFD8DC"/>
+        <path d="M0 -210 L8 -185 L10 72 L0 92 L-10 72 L-8 -185 Z" fill="#ECEFF1"/>
+        <rect x="-42" y="68" width="84" height="28" rx="4" fill="#FFC107"/>
+        <circle cx="-42" cy="82" r="14" fill="#FFC107"/>
+        <circle cx="42" cy="82" r="14" fill="#FFC107"/>
+        <rect x="-18" y="96" width="36" height="92" rx="6" fill="#6D4C41"/>
+        <rect x="-18" y="110" width="36" height="10" fill="#5D4037"/>
+        <rect x="-18" y="134" width="36" height="10" fill="#5D4037"/>
+        <rect x="-18" y="158" width="36" height="10" fill="#5D4037"/>
+        <circle cx="0" cy="208" r="26" fill="#FFC107"/>
+        <circle cx="0" cy="208" r="10" fill="#FFD54F"/>
+      </g>
+    </g>
+  </g>
+</svg>
